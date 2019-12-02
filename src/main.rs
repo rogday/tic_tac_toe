@@ -13,13 +13,12 @@ mod game {
         O,
     }
     type Cell = Option<Player>;
-    type Board = Vec<Cell>;
+    pub type Board = Vec<Cell>;
 
     #[derive(Debug)]
     pub struct TicTacToe {
         board: Board,
         turn: Player,
-        ai: Player,
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -54,9 +53,8 @@ mod game {
     impl TicTacToe {
         pub fn with_size(size: usize) -> Self {
             TicTacToe {
-                board: std::vec::from_elem(None, size),
+                board: vec![None; size],
                 turn: Player::X,
-                ai: Player::O,
             }
         }
 
@@ -80,7 +78,6 @@ mod game {
         }
 
         pub fn ai_move(&mut self, debug: bool) -> Result<Option<Player>, MoveError> {
-            self.ai = self.turn;
             let m = self.get_best_move(self.board.clone(), std::i64::MIN, std::i64::MAX, true, 0);
             if debug {
                 println!("{:?}", m);
@@ -89,37 +86,32 @@ mod game {
         }
 
         fn maxmin_turn(&self, maximizing: bool) -> Option<Player> {
-            Some(if maximizing { self.ai } else { turn(self.ai) })
+            Some(if maximizing {
+                self.turn
+            } else {
+                turn(self.turn)
+            })
         }
 
         fn get_best_move(
-            &mut self,
-            mut board: Board,
+            &self,
+            board: Board,
             mut alpha: i64,
             mut beta: i64,
             maximizing: bool,
             depth: usize,
         ) -> Move {
-            println!(
-                "{padding}{}: {}",
-                depth,
-                board
-                    .iter()
-                    .map(|x| match x {
-                        None => '_',
-                        Some(Player::O) => 'O',
-                        Some(Player::X) => 'X',
-                    })
-                    .collect::<String>(),
-                padding = std::iter::repeat('\t').take(depth).collect::<String>()
-            );
-
             if let Some(winner) = check_win(&board) {
-                println!("{:?}", winner);
-                return Move {
-                    score: (if winner == self.ai { 1 } else { -1 }) * 100 + depth as i64,
+                let m = Move {
+                    score: (if winner == self.turn { 1 } else { -1 }) * 100 + depth as i64,
                     index: 0,
                 };
+
+                return m;
+            }
+
+            if board.iter().filter(|x| x.is_none()).count() == 0 {
+                return Move { score: 0, index: 0 };
             }
 
             let mut best_move = Move {
@@ -131,17 +123,19 @@ mod game {
                 index: 0,
             };
 
+            let mark = self.maxmin_turn(maximizing);
             for i in 0..board.len() {
                 if !board[i].is_none() {
                     continue;
                 }
 
-                board[i] = self.maxmin_turn(maximizing);
+                let mut new_board = board.clone();
+                new_board[i] = mark;
+
                 let mut new_move =
-                    self.get_best_move(board.clone(), alpha, beta, !maximizing, depth + 1);
+                    self.get_best_move(new_board, alpha, beta, !maximizing, depth + 1);
 
                 new_move.index = i;
-                board[i] = None;
 
                 if maximizing {
                     best_move = std::cmp::max(best_move, new_move);
@@ -156,7 +150,6 @@ mod game {
                 }
             }
 
-            println!("{}{:?}", depth, best_move);
             best_move
         }
     }
@@ -169,6 +162,17 @@ where
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     input.trim().parse().unwrap()
+}
+
+fn board_to_string(board: &game::Board) -> String {
+    board
+        .iter()
+        .map(|x| match x {
+            None => '_',
+            Some(game::Player::O) => 'O',
+            Some(game::Player::X) => 'X',
+        })
+        .collect()
 }
 
 fn main() {
@@ -193,17 +197,7 @@ fn main() {
 
         match res {
             Ok(game_result) => {
-                println!(
-                    "{}",
-                    game.board()
-                        .iter()
-                        .map(|x| match x {
-                            None => '_',
-                            Some(Player::O) => 'O',
-                            Some(Player::X) => 'X',
-                        })
-                        .collect::<String>()
-                );
+                println!("{}", board_to_string(game.board()));
                 if let Some(winner) = game_result {
                     println!("Player {:?} won!", winner);
                 }
