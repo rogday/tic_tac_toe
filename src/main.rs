@@ -45,11 +45,6 @@ mod game {
     fn check_win(board: &[Cell]) -> GameResult {
         use itertools::Itertools;
 
-        //draw check which should be useless after certain size of the board
-        if board.iter().filter(|x| x.is_none()).count() == 0 {
-            return GameResult::Tie;
-        }
-
         let max_distance = (board.len() - 3) / 2;
         for d in 0..=max_distance {
             let last_occurence = board.len() - 3 - (2 * d);
@@ -59,6 +54,11 @@ mod game {
                     return GameResult::Win(board[j].map(turn).unwrap());
                 }
             }
+        }
+
+        //draw check which should be useless after certain size of the board
+        if board.iter().filter(|x| x.is_none()).count() == 0 {
+            return GameResult::Tie;
         }
 
         GameResult::NotEnded
@@ -118,7 +118,8 @@ mod game {
             match check_win(&board) {
                 GameResult::Win(winner) => {
                     return Move {
-                        score: (if winner == self.turn { 1 } else { -1 }) * 100 + depth as i64,
+                        score: (if winner == self.turn { 1 } else { -1 }) * 100
+                            + (if maximizing { -1 } else { 1 }) * depth as i64,
                         index: 0,
                     }
                 }
