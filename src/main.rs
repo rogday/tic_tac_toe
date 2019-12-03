@@ -12,6 +12,14 @@ mod game {
         X,
         O,
     }
+
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+    pub enum GameResult {
+        Win(Player),
+        Tie,
+        NotEnded,
+    }
+
     type Cell = Option<Player>;
     pub type Board = Vec<Cell>;
 
@@ -34,8 +42,13 @@ mod game {
         }
     }
 
-    fn check_win(board: &[Cell]) -> Option<Player> {
+    fn check_win(board: &[Cell]) -> GameResult {
         use itertools::Itertools;
+
+        //draw check which should be useless after certain size of the board
+        if board.iter().filter(|x| x.is_none()).count() == 0 {
+            return GameResult::Tie;
+        }
 
         let max_distance = (board.len() - 3) / 2;
         for d in 0..=max_distance {
@@ -43,11 +56,12 @@ mod game {
             for j in 0..=last_occurence {
                 if !board[j].is_none() && (j..).step_by(d + 1).take(3).map(|x| board[x]).all_equal()
                 {
-                    return board[j].map(turn);
+                    return GameResult::Win(board[j].map(turn).unwrap());
                 }
             }
         }
-        None
+
+        GameResult::NotEnded
     }
 
     impl TicTacToe {
@@ -66,7 +80,7 @@ mod game {
             *self = TicTacToe::with_size(self.board.len());
         }
 
-        pub fn player_move(&mut self, place: usize) -> Result<Option<Player>, MoveError> {
+        pub fn player_move(&mut self, place: usize) -> Result<GameResult, MoveError> {
             if !self.board[place].is_none() {
                 return Err(MoveError::PlaceIsOccupied);
             }
@@ -77,7 +91,7 @@ mod game {
             Ok(check_win(&self.board))
         }
 
-        pub fn ai_move(&mut self, debug: bool) -> Result<Option<Player>, MoveError> {
+        pub fn ai_move(&mut self, debug: bool) -> Result<GameResult, MoveError> {
             let m = self.get_best_move(self.board.clone(), std::i64::MIN, std::i64::MAX, true, 0);
             if debug {
                 println!("{:?}", m);
@@ -101,17 +115,15 @@ mod game {
             maximizing: bool,
             depth: usize,
         ) -> Move {
-            if let Some(winner) = check_win(&board) {
-                let m = Move {
-                    score: (if winner == self.turn { 1 } else { -1 }) * 100 + depth as i64,
-                    index: 0,
-                };
-
-                return m;
-            }
-
-            if board.iter().filter(|x| x.is_none()).count() == 0 {
-                return Move { score: 0, index: 0 };
+            match check_win(&board) {
+                GameResult::Win(winner) => {
+                    return Move {
+                        score: (if winner == self.turn { 1 } else { -1 }) * 100 + depth as i64,
+                        index: 0,
+                    }
+                }
+                GameResult::Tie => return Move { score: 0, index: 0 },
+                GameResult::NotEnded => (),
             }
 
             let mut best_move = Move {
@@ -198,8 +210,11 @@ fn main() {
         match res {
             Ok(game_result) => {
                 println!("{}", board_to_string(game.board()));
-                if let Some(winner) = game_result {
-                    println!("Player {:?} won!", winner);
+
+                match game_result {
+                    GameResult::Win(winner) => println!("Player {:?} won!", winner),
+                    GameResult::Tie => println!("Tie!"),
+                    GameResult::NotEnded => (),
                 }
             }
             Err(error) => {
